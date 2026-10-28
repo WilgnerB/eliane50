@@ -265,14 +265,16 @@ footer { text-align: center; padding-block: 18px 30px; font-size: .72rem; letter
           <label for="recado">Recado para a Eliane (opcional)</label>
           <textarea id="recado" name="recado" placeholder="Deixe um carinho…"></textarea>
         </div>
-        <a class="send" id="send" href="#" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>
-          Enviar pelo WhatsApp
-        </a>
+        <button class="send" id="send" type="submit">Confirmar</button>
+        <div class="err" id="send-err" hidden>Não foi possível enviar. Verifique sua internet e tente de novo.</div>
       </form>
       <div class="thanks" id="thanks" hidden>
         <div class="big" id="thanks-title">Obrigada!</div>
-        <p id="thanks-text">Sua confirmação foi aberta no WhatsApp. É só tocar em enviar por lá.</p>
+        <p id="thanks-text">Sua resposta foi registrada.</p>
+        <a class="send" id="whats" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>
+          Avisar a Eliane no WhatsApp
+        </a>
         <button type="button" id="again">Confirmar outra pessoa</button>
       </div>
     </div>
@@ -320,7 +322,12 @@ footer { text-align: center; padding-block: 18px 30px; font-size: .72rem; letter
   var qtdBox = document.getElementById("qtd-box");
   var hint = document.getElementById("qtd-hint");
   var send = document.getElementById("send");
+  var whats = document.getElementById("whats");
   var err = document.getElementById("err");
+  var sendErr = document.getElementById("send-err");
+  // Google Form que alimenta a planilha "Confirmações - Eliane 50 anos"
+  var FORM = "https://docs.google.com/forms/d/e/1FAIpQLSfGtXUn7e4GoOooPE8mFDNZ9VXQ0QNrgsf7r5L6qwiGmFCsJA/formResponse";
+  var FIELDS = { nome: "entry.1912634158", vai: "entry.1579960306", pessoas: "entry.1239190208", recado: "entry.2042462210" };
   var qtd = 1;
 
   function vai() { return document.getElementById("vai-sim").checked; }
@@ -341,22 +348,35 @@ footer { text-align: center; padding-block: 18px 30px; font-size: .72rem; letter
     qtdOut.textContent = qtd;
     hint.textContent = qtd === 1 ? "pessoa" : "pessoas";
     qtdBox.hidden = !vai();
-    send.href = "https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(message());
+    whats.href = "https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(message());
   }
   document.getElementById("menos").addEventListener("click", function () { if (qtd > 1) { qtd--; update(); } });
   document.getElementById("mais").addEventListener("click", function () { if (qtd < 20) { qtd++; update(); } });
   form.addEventListener("input", function () { if (nome.value.trim()) err.hidden = true; update(); });
   form.addEventListener("change", update);
-  form.addEventListener("submit", function (e) { e.preventDefault(); });
-  send.addEventListener("click", function (e) {
-    if (!nome.value.trim()) { e.preventDefault(); err.hidden = false; nome.focus(); return; }
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (!nome.value.trim()) { err.hidden = false; nome.focus(); return; }
     update();
     var going = vai();
-    setTimeout(function () {
+    var body = new URLSearchParams();
+    body.append(FIELDS.nome, nome.value.trim());
+    body.append(FIELDS.vai, going ? "Sim" : "Não");
+    body.append(FIELDS.pessoas, going ? String(qtd) : "0");
+    body.append(FIELDS.recado, recado.value.trim());
+    send.disabled = true; send.textContent = "Enviando…"; sendErr.hidden = true;
+    fetch(FORM, { method: "POST", mode: "no-cors", body: body }).then(function () {
       form.hidden = true;
       document.getElementById("thanks-title").textContent = going ? "Obrigada!" : "Que pena!";
+      document.getElementById("thanks-text").textContent = going
+        ? "Sua presença está confirmada. Te espero no dia 17!"
+        : "Sua resposta foi registrada. Obrigada por avisar.";
       document.getElementById("thanks").hidden = false;
-    }, 400);
+    }).catch(function () {
+      sendErr.hidden = false;
+    }).then(function () {
+      send.disabled = false; send.textContent = "Confirmar";
+    });
   });
   document.getElementById("again").addEventListener("click", function () {
     form.reset(); qtd = 1; update();
